@@ -22,9 +22,47 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <getopt.h>
 
 #define VERSION "0.1"
+
+#define MAX_BUFSIZE 1024
+
+bool screen_print = false;
+
+#define psprintf( ... )						\
+{								\
+	if (screen_print)					\
+	{							\
+		printf( __VA_ARGS__ );				\
+	}							\
+	else							\
+	{							\
+		char tmp[MAX_BUFSIZE];				\
+		snprintf(tmp, MAX_BUFSIZE, __VA_ARGS__);	\
+		printbuf_write(tmp);				\
+	}							\
+}
+
+static char * printbuf = NULL;
+static size_t printbuf_len = 0;
+
+static void printbuf_write(char * data)
+{
+	size_t len = strlen(data);
+
+	if ((printbuf = realloc(printbuf, printbuf_len + len)) == NULL)
+	{
+		printf("Error allocating output buffer");
+
+		return;
+	}
+
+	memset(printbuf + printbuf_len, 0, len);
+	memcpy(printbuf + printbuf_len, data, len);
+	printbuf_len += len;
+}
 
 typedef uint8_t             u1;
 typedef uint16_t            u2;
@@ -244,7 +282,7 @@ printUnsignedLebValue(char *format,
 	fread(stringData,1,uLebValue,DexFile);
 
 	stringData[uLebValue]='\0';	
-	printf(format,stringData);
+	psprintf(format,stringData);
 	free(uLebBuff);
 }
 /*this allows us to print ACC_FLAGS symbolically*/
@@ -253,11 +291,11 @@ void parseAccessFlags(u4 flags){
 	if (flags){
 		for (;i<20;i++){
 			if (flags & ACCESS_FLAG_VALUES[i]){
-					printf(" %s ",ACCESS_FLAG_NAMES[i]);	
+					psprintf(" %s ",ACCESS_FLAG_NAMES[i]);	
 			}
 		}	
 	}
-	printf("\n");
+	psprintf("\n");
 }
 /*not entirely sure how I should use these methods, as is they are only usefull for printing values, and don't return them :/
 though as a tradeoff I've made the methods manipulate the string data in place, so the conversion to returning them would be easy */
@@ -276,7 +314,7 @@ printStringValue(string_id_struct *strIdList,
 		printUnsignedLebValue(format,stringData,strIdOff,DexFile);
 	}
 	else{
-		printf("none\n");		
+		psprintf("none\n");		
 	}
 	free(stringData);
 	stringData=NULL;
@@ -298,7 +336,7 @@ printTypeDesc(string_id_struct *strIdList,
 		printUnsignedLebValue(format,stringData,strIdOff,DexFile);
 	}
 	else{
-		printf("none\n");
+		psprintf("none\n");
 	}
 	free(stringData);
 	stringData=NULL;
@@ -316,7 +354,7 @@ printClassFileName(string_id_struct *strIdList,
 		printUnsignedLebValue("(%s)\n",stringData,strIdOff,DexFile);
 	}
 	else{
-		printf("none\n");
+		psprintf("none\n");
 	}
 	free(stringData);
 	stringData=NULL;
@@ -336,7 +374,7 @@ printTypeDescForClass(string_id_struct *strIdList,
 	stringData=NULL;
 	}
 	else{
-		printf("none\n");
+		psprintf("none\n");
 	}
 }
 void parseClass(){
@@ -351,14 +389,15 @@ void help_show_message()
 	fprintf(stderr, " options:\n");
 	fprintf(stderr, "    -V             print verbose information\n");
 }
-int main(int argc, char *argv[])
+
+char * dexinfo(char * dexfile, int DEBUG)
 {
-	char *dexfile;
+	// char *dexfile;
 	FILE *input;
 	size_t offset, offset2;
 	ssize_t len;
 	int i,c;
-	int DEBUG=0;
+	// int DEBUG=0;
 
 	int static_fields_size;
 	int instance_fields_size;
@@ -392,101 +431,90 @@ int main(int argc, char *argv[])
 
 	int size_uleb, size_uleb_value;
 
-	printf ("\n=== dexinfo %s - (c) 2012-2013 Pau Oliva Fora\n\n", VERSION);
+	psprintf ("\n=== dexinfo %s - (c) 2012-2013 Pau Oliva Fora\n\n", VERSION);
 
-	if (argc < 2) {
-		help_show_message();
-		return 1;
-	}
-
-	dexfile=argv[1];
 	input = fopen(dexfile, "rb");
 	if (input == NULL) {
 		fprintf(stderr, "ERROR: Can't open dex file!\n");
 		perror(dexfile);
-		exit(1);
+		if (screen_print)
+			exit(1);
+		else
+			return NULL;
 	}
 
-        while ((c = getopt(argc, argv, "V")) != -1) {
-                switch(c) {
-     		case 'V':
-			DEBUG=1;
-			break;
-                default:
-                        help_show_message();
-                        return 1;
-                }
-        }
-
 	/* print dex header information */
-        printf ("[] Dex file: %s\n\n",dexfile);
+        psprintf ("[] Dex file: %s\n\n",dexfile);
 
 	memset(&header, 0, sizeof(header));
 	memset(&class_def_item, 0, sizeof(class_def_item));
 
 	fread(&header, 1, sizeof(header), input);
 
-	printf ("[] DEX magic: ");
-	for (i=0;i<3;i++) printf("%02X ", header.magic.dex[i]);
-	printf("%02X ", *header.magic.newline);
-	for (i=0;i<3;i++) printf("%02X ", header.magic.ver[i]);
-	printf("%02X ", *header.magic.zero);
-	printf ("\n");
+	psprintf ("[] DEX magic: ");
+	for (i=0;i<3;i++) psprintf("%02X ", header.magic.dex[i]);
+	psprintf("%02X ", *header.magic.newline);
+	for (i=0;i<3;i++) psprintf("%02X ", header.magic.ver[i]);
+	psprintf("%02X ", *header.magic.zero);
+	psprintf ("\n");
 
 	if ( (strncmp(header.magic.dex,"dex",3) != 0) || 
 	     (strncmp(header.magic.newline,"\n",1) != 0) || 
 	     (strncmp(header.magic.zero,"\0",1) != 0 ) ) {
 		fprintf (stderr, "ERROR: not a dex file\n");
 		fclose(input);
-		exit(1);
+		if (screen_print)
+			exit(1);
+		else
+			return NULL;
 	}
 
-	printf ("[] DEX version: %s\n", header.magic.ver);
+	psprintf ("[] DEX version: %s\n", header.magic.ver);
 	if (strncmp(header.magic.ver,"035",3) != 0) {
 		fprintf (stderr,"Warning: Dex file version != 035\n");
 	}
 
-	printf ("[] Adler32 checksum: 0x%x\n", *header.checksum);
+	psprintf ("[] Adler32 checksum: 0x%x\n", *header.checksum);
 
-	printf ("[] SHA1 signature: ");
-	for (i=0;i<20;i++) printf("%02x", header.signature[i]);
-	printf("\n");
+	psprintf ("[] SHA1 signature: ");
+	for (i=0;i<20;i++) psprintf("%02x", header.signature[i]);
+	psprintf("\n");
 
 	if (DEBUG) {
-		printf ("[] File size: %d bytes\n", *header.file_size);
-		printf ("[] DEX Header size: %d bytes (0x%x)\n", *header.header_size, *header.header_size);
+		psprintf ("[] File size: %d bytes\n", *header.file_size);
+		psprintf ("[] DEX Header size: %d bytes (0x%x)\n", *header.header_size, *header.header_size);
 	}
 
 	if (*header.header_size != 0x70) {
 		fprintf (stderr,"Warning: Header size != 0x70\n");
 	}
 
-	if (DEBUG) printf("[] Endian Tag: 0x%x\n", *header.endian_tag);
+	if (DEBUG) psprintf("[] Endian Tag: 0x%x\n", *header.endian_tag);
 	if (*header.endian_tag != 0x12345678) {
 		fprintf (stderr,"Warning: Endian tag != 0x12345678\n");
 	}
 
 	if (DEBUG) {
-		printf("[] Link size: %d\n", *header.link_size);
-		printf("[] Link offset: 0x%x\n", *header.link_off);
-		printf("[] Map list offset: 0x%x\n", *header.map_off);
-		printf("[] Number of strings in string ID list: %d\n", *header.string_ids_size);
-		printf("[] String ID list offset: 0x%x\n", *header.string_ids_off);
-		printf("[] Number of types in the type ID list: %d\n", *header.type_ids_size);
-		printf("[] Type ID list offset: 0x%x\n", *header.type_ids_off);
-		printf("[] Number of items in the method prototype ID list: %d\n", *header.proto_ids_size);
-		printf("[] Method prototype ID list offset: 0x%x\n", *header.proto_ids_off);
-		printf("[] Number of item in the field ID list: %d\n", *header.field_ids_size);
-		printf("[] Field ID list offset: 0x%x\n", *header.field_ids_off);
-		printf("[] Number of items in the method ID list: %d\n", *header.method_ids_size);
-		printf("[] Method ID list offset: 0x%x\n", *header.method_ids_off);
-		printf("[] Number of items in the class definitions list: %d\n", *header.class_defs_size);
-		printf("[] Class definitions list offset: 0x%x\n", *header.class_defs_off);
-		printf("[] Data section size: %d bytes\n", *header.data_size);
-		printf("[] Data section offset: 0x%x\n", *header.data_off);
+		psprintf("[] Link size: %d\n", *header.link_size);
+		psprintf("[] Link offset: 0x%x\n", *header.link_off);
+		psprintf("[] Map list offset: 0x%x\n", *header.map_off);
+		psprintf("[] Number of strings in string ID list: %d\n", *header.string_ids_size);
+		psprintf("[] String ID list offset: 0x%x\n", *header.string_ids_off);
+		psprintf("[] Number of types in the type ID list: %d\n", *header.type_ids_size);
+		psprintf("[] Type ID list offset: 0x%x\n", *header.type_ids_off);
+		psprintf("[] Number of items in the method prototype ID list: %d\n", *header.proto_ids_size);
+		psprintf("[] Method prototype ID list offset: 0x%x\n", *header.proto_ids_off);
+		psprintf("[] Number of item in the field ID list: %d\n", *header.field_ids_size);
+		psprintf("[] Field ID list offset: 0x%x\n", *header.field_ids_off);
+		psprintf("[] Number of items in the method ID list: %d\n", *header.method_ids_size);
+		psprintf("[] Method ID list offset: 0x%x\n", *header.method_ids_off);
+		psprintf("[] Number of items in the class definitions list: %d\n", *header.class_defs_size);
+		psprintf("[] Class definitions list offset: 0x%x\n", *header.class_defs_off);
+		psprintf("[] Data section size: %d bytes\n", *header.data_size);
+		psprintf("[] Data section offset: 0x%x\n", *header.data_off);
 	}
 
-	printf("\n[] Number of classes in the archive: %d\n", *header.class_defs_size);
+	psprintf("\n[] Number of classes in the archive: %d\n", *header.class_defs_size);
 
 	/* parse the strings */
 	string_id_list = malloc(*header.string_ids_size*sizeof(string_id_item));
@@ -506,14 +534,14 @@ int main(int argc, char *argv[])
 #if 0
 	/* strings */
 	for (i=0;i < (*header.string_ids_size)*(sizeof(string_id_item)) ;i+=4) {
-		printf("string_id_list[%d]=%x\n", i/4, *string_id_list[i/4].string_data_off);
+		psprintf("string_id_list[%d]=%x\n", i/4, *string_id_list[i/4].string_data_off);
 	}
 
 	/* methods */
 	for (i=0;i<sizeof(method_id_item)*(*header.method_ids_size);i+=8) {
-		printf ("method_id_list[%d]class=%x\n", i/8, *method_id_list[i/8].class_idx);
-		printf ("method_id_list[%d]proto=%x\n", i/8, *method_id_list[i/8].proto_idx);
-		printf ("method_id_list[%d]name=%x\n\n", i/8, *method_id_list[i/8].name_idx);
+		psprintf ("method_id_list[%d]class=%x\n", i/8, *method_id_list[i/8].class_idx);
+		psprintf ("method_id_list[%d]proto=%x\n", i/8, *method_id_list[i/8].proto_idx);
+		psprintf ("method_id_list[%d]name=%x\n\n", i/8, *method_id_list[i/8].name_idx);
 	}
 #endif
 	/*Parse class definitions*/
@@ -521,44 +549,44 @@ int main(int argc, char *argv[])
 		// change the position to the class_def_struct of each class
 		offset = *header.class_defs_off + ((c-1)*sizeof(class_def_item)); /*get the offset for this class definition*/
 		fseek(input, offset, SEEK_SET);
-		printf("[] Class %d ", c);
+		psprintf("[] Class %d ", c);
 		fread(&class_def_item, 1, sizeof(class_def_item), input); /*read the class definition from the input*/
 		/* print class filename */
 		if (*class_def_item.source_file_idx != 0xffffffff) {
 			printClassFileName(string_id_list,class_def_item,input,str);
 		} else {
-			printf ("(No index): ");
+			psprintf ("(No index): ");
 		}
 
 		if (DEBUG) {
-			printf("\n");
+			psprintf("\n");
 			/* print type id */
-			printf("\tclass_idx='0x%x':", *class_def_item.class_idx);
+			psprintf("\tclass_idx='0x%x':", *class_def_item.class_idx);
 			printTypeDescForClass(string_id_list,type_id_list,class_def_item,input,str);
-			printf("\taccess_flags='0x%x':", *class_def_item.access_flags); /*need to interpret this*/
+			psprintf("\taccess_flags='0x%x':", *class_def_item.access_flags); /*need to interpret this*/
 			parseAccessFlags(*class_def_item.access_flags);
-			printf("\tsuperclass_idx='0x%x':", *class_def_item.superclass_idx);
+			psprintf("\tsuperclass_idx='0x%x':", *class_def_item.superclass_idx);
 			printTypeDesc(string_id_list,type_id_list,*class_def_item.superclass_idx,input,str,"%s\n");
-			printf("\tinterfaces_off='0x%x'\n", *class_def_item.interfaces_off); /*need to look this up in the DexTypeList*/
-			printf("\tsource_file_idx='0x%x'\n", *class_def_item.source_file_idx);
+			psprintf("\tinterfaces_off='0x%x'\n", *class_def_item.interfaces_off); /*need to look this up in the DexTypeList*/
+			psprintf("\tsource_file_idx='0x%x'\n", *class_def_item.source_file_idx);
             if (*class_def_item.source_file_idx != NO_INDEX) 
 			printStringValue(string_id_list,*class_def_item.source_file_idx,input,str,"%s\n"); //causes a seg fault on some dex files
             // The seg fault was because there was no index value on the
             // class_def_item.scource_fie_idx
 		/*should implement decoding the annotations directory items, we can use this to idenfiy Javascript interface accessible methods*/
-			printf("\tannotations_off=0x%x\n", *class_def_item.annotations_off);
-			printf("\tclass_data_off=0x%x (%d)\n", *class_def_item.class_data_off, *class_def_item.class_data_off);
-			printf("\tstatic_values_off=0x%x (%d)\n", *class_def_item.static_values_off, *class_def_item.static_values_off);
+			psprintf("\tannotations_off=0x%x\n", *class_def_item.annotations_off);
+			psprintf("\tclass_data_off=0x%x (%d)\n", *class_def_item.class_data_off, *class_def_item.class_data_off);
+			psprintf("\tstatic_values_off=0x%x (%d)\n", *class_def_item.static_values_off, *class_def_item.static_values_off);
 		}
 
 		// change position to class_data_off
 		if (*class_def_item.class_data_off == 0) {
 			if (DEBUG) {
-				printf ("\t0 static fields\n");
-				printf ("\t0 instance fields\n");
-				printf ("\t0 direct methods\n");
+				psprintf ("\t0 static fields\n");
+				psprintf ("\t0 instance fields\n");
+				psprintf ("\t0 direct methods\n");
 			} else {
-				printf ("0 direct methods, 0 virtual methods\n");
+				psprintf ("0 direct methods, 0 virtual methods\n");
 			}
 			continue;
 		} else {
@@ -572,7 +600,10 @@ int main(int argc, char *argv[])
 			if (len < 1) {
 				fprintf(stderr, "ERROR: invalid file length in dex header?\n");
 				fclose(input);
-				exit(1);
+				if (screen_print)
+					exit(1);
+				else
+					return NULL;
 			}
 		}
 
@@ -580,7 +611,10 @@ int main(int argc, char *argv[])
 		if (buffer == NULL) {
 			fprintf(stderr, "ERROR: could not allocate memory!\n");
 			fclose(input);
-			exit(1);
+			if (screen_print)
+				exit(1);
+			else
+				return NULL;
 		}
 		buffer_pos=buffer;
 		memset(buffer, 0, len);
@@ -592,36 +626,36 @@ int main(int argc, char *argv[])
 		direct_methods_size = readUnsignedLeb128(&buffer);
 		virtual_methods_size = readUnsignedLeb128(&buffer);
 
-		if (DEBUG) printf ("\t%d static fields\n", static_fields_size);
+		if (DEBUG) psprintf ("\t%d static fields\n", static_fields_size);
 
 		for (i=0;i<static_fields_size;i++) {
 			field_idx_diff = readUnsignedLeb128(&buffer);
 			field_access_flags = readUnsignedLeb128(&buffer);
 			if (DEBUG) {
-				printf ("\t\t[%d]|--field_idx_diff='0x%x'\n",i, field_idx_diff);
+				psprintf ("\t\t[%d]|--field_idx_diff='0x%x'\n",i, field_idx_diff);
 				//printTypeDesc(string_id_list,type_id_list,field_idx_diff,input,str," %s\n");
-				printf ("\t\t    |--field_access_flags='0x%x'",field_access_flags);
+				psprintf ("\t\t    |--field_access_flags='0x%x'",field_access_flags);
 				parseAccessFlags(field_access_flags);
 			}
 		}
 
-		if (DEBUG) printf ("\t%d instance fields\n", instance_fields_size);
+		if (DEBUG) psprintf ("\t%d instance fields\n", instance_fields_size);
 
 		for (i=0;i<instance_fields_size;i++) {
 			field_idx_diff = readUnsignedLeb128(&buffer);
 			field_access_flags = readUnsignedLeb128(&buffer);
 			if (DEBUG) {
-				printf ("\t\t[%d]|--field_idx_diff='0x%x'\n", i,field_idx_diff);
+				psprintf ("\t\t[%d]|--field_idx_diff='0x%x'\n", i,field_idx_diff);
 				//printTypeDesc(string_id_list,type_id_list,field_idx_diff,input,str,"%s\n");
-				printf ("\t\t    |--field_access_flags='0x%x' :",field_access_flags);
+				psprintf ("\t\t    |--field_access_flags='0x%x' :",field_access_flags);
 				parseAccessFlags(field_access_flags);
 			}
 		}
 
-		if (!DEBUG) printf ("%d direct methods, %d virtual methods\n", direct_methods_size, virtual_methods_size);
+		if (!DEBUG) psprintf ("%d direct methods, %d virtual methods\n", direct_methods_size, virtual_methods_size);
 
 
-		if (DEBUG) printf ("\t%d direct methods\n", direct_methods_size);
+		if (DEBUG) psprintf ("\t%d direct methods\n", direct_methods_size);
 
 		key=0;
 		for (i=0;i<direct_methods_size;i++) {
@@ -651,20 +685,20 @@ int main(int argc, char *argv[])
 			fread(str, 1, size_uleb_value, input);
 			str[size_uleb_value]='\0';
 
-			printf ("\tdirect method %d = %s\n",i+1, str);
+			psprintf ("\tdirect method %d = %s\n",i+1, str);
 			free(str);
 			str=NULL;
 			if (DEBUG) {
-				printf("\t\tmethod_code_off=0x%x\n", method_code_off);
-				printf("\t\tmethod_access_flags='0x%x'\n", method_access_flags);
+				psprintf("\t\tmethod_code_off=0x%x\n", method_code_off);
+				psprintf("\t\tmethod_access_flags='0x%x'\n", method_access_flags);
 				//parseAccessFlags(method_access_flags);	
-				printf("\t\tclass_idx='0x%x'\n", class_idx);
+				psprintf("\t\tclass_idx='0x%x'\n", class_idx);
 				//printTypeDesc(string_id_list,type_id_list,class_idx,input,str," %s\n");
-				printf("\t\tproto_idx=0x%x\n", proto_idx);
+				psprintf("\t\tproto_idx=0x%x\n", proto_idx);
 			}
 		}
 
-		if (DEBUG) printf ("\t%d virtual methods\n", virtual_methods_size);
+		if (DEBUG) psprintf ("\t%d virtual methods\n", virtual_methods_size);
 
 		key=0;
 		for (i=0;i<virtual_methods_size;i++) {
@@ -695,15 +729,15 @@ int main(int argc, char *argv[])
 			fread(str, 1, size_uleb_value, input);
 			str[size_uleb_value]='\0';
 
-			printf ("\tvirtual method %d = %s\n",i+1, str);
+			psprintf ("\tvirtual method %d = %s\n",i+1, str);
 			free(str);
 			str=NULL;
 			if (DEBUG) {
-				printf("\t\tmethod_code_off=0x%x\n", method_code_off);
-				printf("\t\tmethod_access_flags='0x%x'\n", method_access_flags);
+				psprintf("\t\tmethod_code_off=0x%x\n", method_code_off);
+				psprintf("\t\tmethod_access_flags='0x%x'\n", method_access_flags);
 				//parseAccessFlags(method_access_flags);	
-				printf("\t\tclass_idx=0x%x\n", class_idx);
-				printf("\t\tproto_idx=0x%x\n", proto_idx);
+				psprintf("\t\tclass_idx=0x%x\n", class_idx);
+				psprintf("\t\tproto_idx=0x%x\n", proto_idx);
 			}
 
 		}
@@ -716,5 +750,36 @@ int main(int argc, char *argv[])
 	free(string_id_list);
 
 	fclose(input);
-	return 0;
+	return printbuf;
+}
+
+int main(int argc, char *argv[])
+{
+	char *dexfile;
+	int DEBUG=0;
+	int c;
+
+	screen_print = true;
+
+	if (argc < 2) {
+		help_show_message();
+		return 1;
+	}
+
+	dexfile=argv[1];
+
+        while ((c = getopt(argc, argv, "V")) != -1) {
+                switch(c) {
+     		case 'V':
+			DEBUG=1;
+			break;
+                default:
+                        help_show_message();
+                        return 1;
+                }
+        }
+
+        dexinfo(dexfile, DEBUG);
+
+        return 0;
 }
