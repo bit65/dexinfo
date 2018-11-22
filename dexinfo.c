@@ -29,20 +29,19 @@
 
 #define MAX_BUFSIZE 1024
 
-bool screen_print = false;
+#ifdef PYDEXINFO
 
-#define psprintf( ... )						\
-{								\
-	if (screen_print)					\
-	{							\
-		printf( __VA_ARGS__ );				\
-	}							\
-	else							\
-	{							\
-		char tmp[MAX_BUFSIZE];				\
-		snprintf(tmp, MAX_BUFSIZE, __VA_ARGS__);	\
-		printbuf_write(tmp);				\
-	}							\
+size_t dexinfo_read(uint8_t * buf, size_t len);
+void   dexinfo_seek(off_t offset, int whence);
+
+#define psseek(f, off, whence)		dexinfo_seek(off, whence)
+#define psread(buf, len, nmemb, f)	dexinfo_read((uint8_t *)buf, len * nmemb)
+
+#define psprintf( ... )					\
+{							\
+	char tmp[MAX_BUFSIZE];				\
+	snprintf(tmp, MAX_BUFSIZE, __VA_ARGS__);	\
+	printbuf_write(tmp);				\
 }
 
 static char * printbuf = NULL;
@@ -63,6 +62,16 @@ static void printbuf_write(char * data)
 	memcpy(printbuf + printbuf_len, data, len);
 	printbuf_len += len;
 }
+
+#else
+
+#define psseek(f, off, whence)		fseek(f, off, whence);
+
+#define psread(buf, len, nmemb, f)	fread(buf, len, nmemb, f)
+
+#define psprintf( ... )					\
+		printf( __VA_ARGS__ );
+#endif
 
 typedef uint8_t             u1;
 typedef uint16_t            u2;
@@ -270,16 +279,16 @@ printUnsignedLebValue(char *format,
 	u1 *uLebBuff;
 	int uLebValue, uLebValueLength;
 
-	fseek(DexFile,offset,SEEK_SET); /*move position to the string in data section*/
+	psseek(DexFile,offset,SEEK_SET); /*move position to the string in data section*/
 	uLebBuff = malloc(10*sizeof(u1))	;
-	fread(uLebBuff,1,sizeof(uLebBuff),DexFile);
+	psread(uLebBuff,1,sizeof(uLebBuff),DexFile);
 
 	uLebValue = uleb128_value(uLebBuff);	
 	uLebValueLength = len_uleb128(uLebValue);
 	stringData = malloc(uLebValue * sizeof(u1)+1);
 	
-	fseek(DexFile, offset+uLebValueLength ,SEEK_SET);
-	fread(stringData,1,uLebValue,DexFile);
+	psseek(DexFile, offset+uLebValueLength ,SEEK_SET);
+	psread(stringData,1,uLebValue,DexFile);
 
 	stringData[uLebValue]='\0';	
 	psprintf(format,stringData);
@@ -393,7 +402,7 @@ void help_show_message()
 char * dexinfo(char * dexfile, int DEBUG)
 {
 	// char *dexfile;
-	FILE *input;
+	FILE *input = NULL;
 	size_t offset, offset2;
 	ssize_t len;
 	int i,c;
@@ -433,15 +442,18 @@ char * dexinfo(char * dexfile, int DEBUG)
 
 	psprintf ("\n=== dexinfo %s - (c) 2012-2013 Pau Oliva Fora\n\n", VERSION);
 
+#ifndef PYDEXINFO
 	input = fopen(dexfile, "rb");
 	if (input == NULL) {
 		fprintf(stderr, "ERROR: Can't open dex file!\n");
 		perror(dexfile);
-		if (screen_print)
+#ifndef PYDEXINFO
 			exit(1);
-		else
+#else
 			return NULL;
+#endif
 	}
+#endif
 
 	/* print dex header information */
         psprintf ("[] Dex file: %s\n\n",dexfile);
@@ -449,7 +461,7 @@ char * dexinfo(char * dexfile, int DEBUG)
 	memset(&header, 0, sizeof(header));
 	memset(&class_def_item, 0, sizeof(class_def_item));
 
-	fread(&header, 1, sizeof(header), input);
+	psread(&header, 1, sizeof(header), input);
 
 	psprintf ("[] DEX magic: ");
 	for (i=0;i<3;i++) psprintf("%02X ", header.magic.dex[i]);
@@ -462,11 +474,13 @@ char * dexinfo(char * dexfile, int DEBUG)
 	     (strncmp(header.magic.newline,"\n",1) != 0) || 
 	     (strncmp(header.magic.zero,"\0",1) != 0 ) ) {
 		fprintf (stderr, "ERROR: not a dex file\n");
-		fclose(input);
-		if (screen_print)
+#ifndef PYDEXINFO
+			fclose(input);
+
 			exit(1);
-		else
+#else
 			return NULL;
+#endif
 	}
 
 	psprintf ("[] DEX version: %s\n", header.magic.ver);
@@ -518,18 +532,18 @@ char * dexinfo(char * dexfile, int DEBUG)
 
 	/* parse the strings */
 	string_id_list = malloc(*header.string_ids_size*sizeof(string_id_item));
-	fseek(input, *header.string_ids_off, SEEK_SET);
-	fread(string_id_list, 1, *header.string_ids_size*sizeof(string_id_item), input);
+	psseek(input, *header.string_ids_off, SEEK_SET);
+	psread(string_id_list, 1, *header.string_ids_size*sizeof(string_id_item), input);
 
 	/* parse the types */
 	type_id_list = malloc(*header.type_ids_size*sizeof(type_id_item));
-	fseek(input, *header.type_ids_off, SEEK_SET);
-	fread(type_id_list, 1, *header.type_ids_size*sizeof(type_id_item), input);
+	psseek(input, *header.type_ids_off, SEEK_SET);
+	psread(type_id_list, 1, *header.type_ids_size*sizeof(type_id_item), input);
 
 	/* parse methods */
 	method_id_list = malloc(*header.method_ids_size*sizeof(method_id_item));
-	fseek(input, *header.method_ids_off, SEEK_SET);
-	fread(method_id_list, 1, *header.method_ids_size*sizeof(method_id_item), input);
+	psseek(input, *header.method_ids_off, SEEK_SET);
+	psread(method_id_list, 1, *header.method_ids_size*sizeof(method_id_item), input);
 
 #if 0
 	/* strings */
@@ -548,9 +562,9 @@ char * dexinfo(char * dexfile, int DEBUG)
 	for (c=1; c <= (int)*header.class_defs_size; c++) { /*run through all the class */
 		// change the position to the class_def_struct of each class
 		offset = *header.class_defs_off + ((c-1)*sizeof(class_def_item)); /*get the offset for this class definition*/
-		fseek(input, offset, SEEK_SET);
+		psseek(input, offset, SEEK_SET);
 		psprintf("[] Class %d ", c);
-		fread(&class_def_item, 1, sizeof(class_def_item), input); /*read the class definition from the input*/
+		psread(&class_def_item, 1, sizeof(class_def_item), input); /*read the class definition from the input*/
 		/* print class filename */
 		if (*class_def_item.source_file_idx != 0xffffffff) {
 			printClassFileName(string_id_list,class_def_item,input,str);
@@ -591,7 +605,7 @@ char * dexinfo(char * dexfile, int DEBUG)
 			continue;
 		} else {
 			offset = *class_def_item.class_data_off;
-			fseek(input, offset, SEEK_SET);
+			psseek(input, offset, SEEK_SET);
 		}
 
 		len = *header.map_off - offset;
@@ -600,10 +614,11 @@ char * dexinfo(char * dexfile, int DEBUG)
 			if (len < 1) {
 				fprintf(stderr, "ERROR: invalid file length in dex header?\n");
 				fclose(input);
-				if (screen_print)
+#ifndef PYDEXINFO
 					exit(1);
-				else
+#else
 					return NULL;
+#endif
 			}
 		}
 
@@ -611,14 +626,15 @@ char * dexinfo(char * dexfile, int DEBUG)
 		if (buffer == NULL) {
 			fprintf(stderr, "ERROR: could not allocate memory!\n");
 			fclose(input);
-			if (screen_print)
+#ifndef PYDEXINFO
 				exit(1);
-			else
+#else
 				return NULL;
+#endif
 		}
 		buffer_pos=buffer;
 		memset(buffer, 0, len);
-		fread(buffer, 1, len, input);
+		psread(buffer, 1, len, input);
 
 		// from now on we continue on memory, as we have to parse uleb128
 		static_fields_size = readUnsignedLeb128(&buffer);
@@ -673,16 +689,16 @@ char * dexinfo(char * dexfile, int DEBUG)
 
 			/* print method name ... should really do this stuff through a common function, its going to be annoying to debug this...:/ */
 			offset2=*string_id_list[name_idx].string_data_off;
-			fseek(input, offset2, SEEK_SET);
+			psseek(input, offset2, SEEK_SET);
 
 			buf = malloc(10 * sizeof(u1));
-			fread(buf, 1, sizeof(buf), input);
+			psread(buf, 1, sizeof(buf), input);
 			size_uleb_value = uleb128_value(buf);
 			size_uleb=len_uleb128(size_uleb_value);
 			str = malloc(size_uleb_value * sizeof(u1)+1);
 			// offset2: on esta el tamany (size_uleb_value) en uleb32 de la string, seguit de la string
-			fseek(input, offset2+size_uleb, SEEK_SET);
-			fread(str, 1, size_uleb_value, input);
+			psseek(input, offset2+size_uleb, SEEK_SET);
+			psread(str, 1, size_uleb_value, input);
 			str[size_uleb_value]='\0';
 
 			psprintf ("\tdirect method %d = %s\n",i+1, str);
@@ -717,16 +733,16 @@ char * dexinfo(char * dexfile, int DEBUG)
 			/* print method name */
 			offset2=*string_id_list[name_idx].string_data_off;
 			//printStringValue(string_id_list,name_idx,input,str,"%s\n");
-			fseek(input, offset2, SEEK_SET);
+			psseek(input, offset2, SEEK_SET);
 
 			buf = malloc(10 * sizeof(u1));
-			fread(buf, 1, sizeof(buf), input);
+			psread(buf, 1, sizeof(buf), input);
 			size_uleb_value = uleb128_value(buf);
 			size_uleb=len_uleb128(size_uleb_value);
 			str = malloc(size_uleb_value * sizeof(u1)+1);
 			// offset2: on esta el tamany (size_uleb_value) en uleb32 de la string, seguit de la string 
-			fseek(input, offset2+size_uleb, SEEK_SET);
-			fread(str, 1, size_uleb_value, input);
+			psseek(input, offset2+size_uleb, SEEK_SET);
+			psread(str, 1, size_uleb_value, input);
 			str[size_uleb_value]='\0';
 
 			psprintf ("\tvirtual method %d = %s\n",i+1, str);
@@ -750,7 +766,11 @@ char * dexinfo(char * dexfile, int DEBUG)
 	free(string_id_list);
 
 	fclose(input);
+#ifdef PYDEXINFO
 	return printbuf;
+#else
+	return NULL;
+#endif
 }
 
 int main(int argc, char *argv[])
@@ -758,8 +778,6 @@ int main(int argc, char *argv[])
 	char *dexfile;
 	int DEBUG=0;
 	int c;
-
-	screen_print = true;
 
 	if (argc < 2) {
 		help_show_message();
