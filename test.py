@@ -1,5 +1,6 @@
 #!/usr/bin/python
 import pydexinfo
+import re
 
 class t:
 	def read(self, size):
@@ -12,5 +13,7 @@ class t:
 
 #pydexinfo.dexinfo(t())
 f = open("classes.dex", "rb")
-pydexinfo.parse(f)
+s = pydexinfo.parse(f)
 f.close()
+
+print(set(re.findall("MethodVal (.+)", s)))

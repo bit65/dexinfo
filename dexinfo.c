@@ -147,15 +147,15 @@ typedef struct {
 
 /*names for the access flags*/
 const char * ACCESS_FLAG_NAMES[20] = {
-    "public",       
+    "public",
     "private",
     "protected",
-    "static",       
-    "final",      
+    "static",
+    "final",
     "synchronized",
-    "super",  
+    "super",
     "volatile",
-    "bridge",   
+    "bridge",
     "transient",
     "varargs",
     "native",
@@ -164,7 +164,7 @@ const char * ACCESS_FLAG_NAMES[20] = {
     "strict",
     "synthetic",
     "annotation",
-    "enum",    
+    "enum",
     "constructor",
     "declared_synchronized"};
 /*values for the access flags, this and the preceeding list are used as a lookup dictionary*/
@@ -190,7 +190,7 @@ const u4 ACCESS_FLAG_VALUES[20] = {
     0x00010000,
     0x00020000};
 
-const u4 NO_INDEX = 0xffffffff; 
+const u4 NO_INDEX = 0xffffffff;
 
 int readUnsignedLeb128(u1** pStream)
 {
@@ -319,6 +319,7 @@ printStringValue(string_id_struct *strIdList,
 
 	size_t strIdOff;
 	if (offset_pointer){
+		//printf("strIdOff = %p\n", strIdList[offset_pointer].string_data_off);
 		strIdOff = *strIdList[offset_pointer].string_data_off; /*get the offset to the string in the data section*/
 		/*would be cool if we have a RAW mode, with only hex unparsed data, and a SYMBOLIC mode where all the data is parsed and interpreted */
 		printUnsignedLebValue(format,stringData,strIdOff,DexFile);
@@ -546,17 +547,18 @@ char * dexinfo(char * dexfile, int DEBUG)
 	psseek(input, *header.method_ids_off, SEEK_SET);
 	psread(method_id_list, 1, *header.method_ids_size*sizeof(method_id_item), input);
 
-#if 0
+#if 1
 	/* strings */
 	for (i=0;i < (*header.string_ids_size)*(sizeof(string_id_item)) ;i+=4) {
-		psprintf("string_id_list[%d]=%x\n", i/4, *string_id_list[i/4].string_data_off);
+		psprintf("string_id_list[%d] (%x) = \n", i/4, *string_id_list[i/4].string_data_off);
 	}
 
 	/* methods */
 	for (i=0;i<sizeof(method_id_item)*(*header.method_ids_size);i+=8) {
 		psprintf ("method_id_list[%d]class=%x\n", i/8, *method_id_list[i/8].class_idx);
 		psprintf ("method_id_list[%d]proto=%x\n", i/8, *method_id_list[i/8].proto_idx);
-		psprintf ("method_id_list[%d]name=%x\n\n", i/8, *method_id_list[i/8].name_idx);
+		psprintf ("method_id_list[%d]name=%x\n", i/8, *method_id_list[i/8].name_idx);
+		printStringValue(string_id_list, *method_id_list[i/8].name_idx, input, str, "MethodVal %s\n\n");
 	}
 #endif
 	/*Parse class definitions*/
