@@ -675,12 +675,8 @@ char * dexinfo(char * dexfile, int DEBUG)
 
 		if (DEBUG) psprintf ("\t%d direct methods\n", direct_methods_size);
 
-#ifdef PYDEXINFO
-		printf("%s\n", printbuf);
-#endif
 		key=0;
 		for (i=0;i<direct_methods_size;i++) {
-	// printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ %s::%d\n", __FUNCTION__, __LINE__);
 			method_idx_diff = readUnsignedLeb128(&buffer);
 			method_access_flags = readUnsignedLeb128(&buffer);
 			method_code_off = readUnsignedLeb128(&buffer);
@@ -771,10 +767,10 @@ char * dexinfo(char * dexfile, int DEBUG)
 	free(method_id_list);
 	free(string_id_list);
 
-	fclose(input);
 #ifdef PYDEXINFO
 	return printbuf;
 #else
+	fclose(input);
 	return NULL;
 #endif
 }

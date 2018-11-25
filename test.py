@@ -12,5 +12,5 @@ class t:
 
 #pydexinfo.dexinfo(t())
 f = open("classes.dex", "rb")
-pydexinfo.dexinfo(f)
+pydexinfo.parse(f)
 f.close()

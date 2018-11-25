@@ -30,8 +30,32 @@ char * dexinfo(char * dexfile, int DEBUG);
 static PyObject * err_dexinfo;
 
 static PyObject * fileobj;
-static PyObject * file_read;
-static PyObject * file_seek;
+
+#define BYTES_IN_LINE 16
+#define MIN(a, b) ((a < b) ? (a) : (b))
+
+#ifdef DEBUG
+static void dump(uint8_t * ptr, size_t len)
+{
+	int i = 0;
+	int j = 0;
+
+	size_t lines = len / BYTES_IN_LINE + !!(len % BYTES_IN_LINE);
+
+	printf("== LEN = %zu == LINES = %zu ==============\n", len, lines);
+
+	for (i = 0; i < lines; ++i)
+	{
+		for (j = 0; j < BYTES_IN_LINE && i * BYTES_IN_LINE + j < len; ++j)
+		{
+			printf("%02x ", ptr[i * BYTES_IN_LINE + j]);
+		}
+
+		printf("\n");
+	}
+}
+
+#endif
 
 ssize_t dexinfo_read(uint8_t * buf, size_t len)
 {
@@ -40,27 +64,32 @@ ssize_t dexinfo_read(uint8_t * buf, size_t len)
 
 	res = PyObject_CallMethod(fileobj, "read", "i", len);
 
-	err = PyString_Size(res);
+	if ((err = PyString_Size(res)) < 0)
+	{
+		printf("Error in string size\n");
 
-	// printf("Requested (%8zu) - Read diff (%8d): %zu\n", len, err, len - err);
+		goto error;
+	}
 
 	memcpy(buf, PyString_AsString(res), err);
 
+error:
 	return err;
 }
 
 void dexinfo_seek(off_t offset, int whence)
 {
-	// printf("Seek offset: %zd Whence: %d\n", offset, whence);
 	PyObject_CallMethod(fileobj, "seek", "ii", offset, whence);
 }
 
 static PyObject * pydexinfo_dexinfo(PyObject __attribute__((unused)) * self, PyObject * args)
 {
 	PyObject * err = NULL;
+	PyObject * file_read = NULL;
+	PyObject * file_seek = NULL;
+	PyObject *temp;
 	char * dexfile;
 	char * printbuf;
-	PyObject *temp;
 	int verbose;
 
 	if (!PyArg_ParseTuple(args, "sb", &dexfile, &verbose))
@@ -69,23 +98,19 @@ static PyObject * pydexinfo_dexinfo(PyObject __attribute__((unused)) * self, PyO
 
 		if (!PyArg_ParseTuple(args, "s", &dexfile))
 		{
-			if (!PyArg_ParseTuple(args, "O", &temp))
+			if (!PyArg_ParseTuple(args, "Ob", &temp, &verbose))
 			{
-				PyErr_SetString(err_dexinfo, "Error parsing function arguments");
+				if (!PyArg_ParseTuple(args, "O", &temp))
+				{
+					PyErr_SetString(err_dexinfo, "Error parsing function arguments");
 
-				goto error;
+					goto error;
+				}
 			}
 
 			Py_XINCREF(temp);
 			Py_XDECREF(fileobj);
 			fileobj = temp;
-
-			if (file_read)
-			{
-				Py_XDECREF(file_read);
-
-				file_read = NULL;
-			}
 
 			if (!(file_read = PyObject_GetAttrString(fileobj, "read")))
 			{
@@ -98,17 +123,7 @@ static PyObject * pydexinfo_dexinfo(PyObject __attribute__((unused)) * self, PyO
 			{
 				PyErr_SetString(err_dexinfo, "Error: file read() object is not callable");
 
-				file_read = NULL;
-
 				goto error;
-			}
-
-			Py_XINCREF(file_read);
-
-			/* Get seek() function */
-			if (file_seek)
-			{
-				Py_XDECREF(file_seek);
 			}
 
 			if (!(file_seek = PyObject_GetAttrString(fileobj, "seek")))
@@ -122,14 +137,8 @@ static PyObject * pydexinfo_dexinfo(PyObject __attribute__((unused)) * self, PyO
 			{
 				PyErr_SetString(err_dexinfo, "Error: file seek() object is not callable");
 
-				file_seek = NULL;
-
 				goto error;
 			}
-
-			Py_XINCREF(file_seek);
-
-			printf("Successful function parse\n");
 
 			/* Tell dexinfo it should call the read callback */
 			dexfile = NULL;
