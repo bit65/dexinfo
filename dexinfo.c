@@ -547,20 +547,24 @@ char * dexinfo(char * dexfile, int DEBUG)
 	psseek(input, *header.method_ids_off, SEEK_SET);
 	psread(method_id_list, 1, *header.method_ids_size*sizeof(method_id_item), input);
 
-#if 1
+#if 0
 	/* strings */
 	for (i=0;i < (*header.string_ids_size)*(sizeof(string_id_item)) ;i+=4) {
-		psprintf("string_id_list[%d] (%x) = \n", i/4, *string_id_list[i/4].string_data_off);
+		 psprintf("string_id_list[%d] (%x) = \n", i/4, *string_id_list[i/4].string_data_off);
 	}
+#endif
+#ifdef PYDEXINFO
 
 	/* methods */
 	for (i=0;i<sizeof(method_id_item)*(*header.method_ids_size);i+=8) {
-		psprintf ("method_id_list[%d]class=%x\n", i/8, *method_id_list[i/8].class_idx);
-		psprintf ("method_id_list[%d]proto=%x\n", i/8, *method_id_list[i/8].proto_idx);
-		psprintf ("method_id_list[%d]name=%x\n", i/8, *method_id_list[i/8].name_idx);
-		printStringValue(string_id_list, *method_id_list[i/8].name_idx, input, str, "MethodVal %s\n\n");
+		// psprintf ("method_id_list[%d]class=%x\n", i/8, *method_id_list[i/8].class_idx);
+		// psprintf ("method_id_list[%d]proto=%x\n", i/8, *method_id_list[i/8].proto_idx);
+		// psprintf ("method_id_list[%d]name=%x\n", i/8, *method_id_list[i/8].name_idx);
+		printStringValue(string_id_list, *method_id_list[i/8].name_idx, input, str, "MethodVal %s\n");
 	}
+
 #endif
+
 	/*Parse class definitions*/
 	for (c=1; c <= (int)*header.class_defs_size; c++) { /*run through all the class */
 		// change the position to the class_def_struct of each class

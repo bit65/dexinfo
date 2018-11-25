@@ -15,5 +15,5 @@ class t:
 f = open("classes.dex", "rb")
 s = pydexinfo.parse(f)
 f.close()
-
-print(set(re.findall("MethodVal (.+)", s)))
+print s
+# print(set(re.findall("MethodVal (.+)", s)))
