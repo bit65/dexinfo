@@ -35,7 +35,7 @@ size_t dexinfo_read(uint8_t * buf, size_t len);
 void   dexinfo_seek(off_t offset, int whence);
 
 #define psseek(f, off, whence)		dexinfo_seek(off, whence)
-#define psread(buf, len, nmemb, f)	dexinfo_read((uint8_t *)buf, len * nmemb)
+#define psread(buf, len, nmemb, f)	dexinfo_read((uint8_t *)buf, (len * nmemb))
 
 #define psprintf( ... )					\
 {							\
@@ -291,6 +291,7 @@ printUnsignedLebValue(char *format,
 	psread(stringData,1,uLebValue,DexFile);
 
 	stringData[uLebValue]='\0';	
+
 	psprintf(format,stringData);
 	free(uLebBuff);
 }
@@ -323,7 +324,7 @@ printStringValue(string_id_struct *strIdList,
 		printUnsignedLebValue(format,stringData,strIdOff,DexFile);
 	}
 	else{
-		psprintf("none\n");		
+		psprintf("none\n");
 	}
 	free(stringData);
 	stringData=NULL;
@@ -604,6 +605,7 @@ char * dexinfo(char * dexfile, int DEBUG)
 			}
 			continue;
 		} else {
+
 			offset = *class_def_item.class_data_off;
 			psseek(input, offset, SEEK_SET);
 		}
@@ -673,8 +675,12 @@ char * dexinfo(char * dexfile, int DEBUG)
 
 		if (DEBUG) psprintf ("\t%d direct methods\n", direct_methods_size);
 
+#ifdef PYDEXINFO
+		printf("%s\n", printbuf);
+#endif
 		key=0;
 		for (i=0;i<direct_methods_size;i++) {
+	// printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ %s::%d\n", __FUNCTION__, __LINE__);
 			method_idx_diff = readUnsignedLeb128(&buffer);
 			method_access_flags = readUnsignedLeb128(&buffer);
 			method_code_off = readUnsignedLeb128(&buffer);

@@ -1,6 +1,16 @@
 #!/usr/bin/python
 import pydexinfo
 
-f = open("/home/giliy/libsearch/examples/cache/classes.dex", "rb")
+class t:
+	def read(self, size):
+		print "Reading %d" % size
+		return " " * size
+
+	def seek(self, pos, whence = 0):
+		print "Seeking %d in %d" % (pos, whence)
+
+
+#pydexinfo.dexinfo(t())
+f = open("classes.dex", "rb")
 pydexinfo.dexinfo(f)
 f.close()

@@ -36,53 +36,23 @@ static PyObject * file_seek;
 ssize_t dexinfo_read(uint8_t * buf, size_t len)
 {
 	int err = -1;
-	PyObject * arglist;
 	PyObject * res;
 
-	printf("Reading to %p Size %zu\n", buf, len);
-
-	arglist = Py_BuildValue("(Oi)", fileobj, len);
-
-	printf("%s:%d arglist = %p\n", __FILE__, __LINE__, arglist);
-
-	res = PyObject_CallObject(file_read, arglist);
-
-	printf("%s:%d\n", __FILE__, __LINE__);
+	res = PyObject_CallMethod(fileobj, "read", "i", len);
 
 	err = PyString_Size(res);
 
-	printf("Read %d\n", err);
+	// printf("Requested (%8zu) - Read diff (%8d): %zu\n", len, err, len - err);
 
 	memcpy(buf, PyString_AsString(res), err);
-#if 0
-	/* Read result */
-	if (!PyArg_ParseTuple(res, "s", &buf))
-	{
-		printf("Error reading python read result\n");
 
-		goto error;
-	}
-#endif
-	printf("%s:%d\n", __FILE__, __LINE__);
-
-	Py_DECREF(arglist);
-
-
-	printf("%s:%d\n", __FILE__, __LINE__);
-
-error:
 	return err;
 }
 
 void dexinfo_seek(off_t offset, int whence)
 {
-	PyObject * arglist;
-
-	arglist = Py_BuildValue("(Oii)", fileobj, offset, whence);
-
-	PyObject_CallObject(file_seek, arglist);
-
-	Py_DECREF(arglist);
+	// printf("Seek offset: %zd Whence: %d\n", offset, whence);
+	PyObject_CallMethod(fileobj, "seek", "ii", offset, whence);
 }
 
 static PyObject * pydexinfo_dexinfo(PyObject __attribute__((unused)) * self, PyObject * args)
