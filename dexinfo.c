@@ -442,6 +442,11 @@ char * dexinfo(char * dexfile, int DEBUG)
 
 	int size_uleb, size_uleb_value;
 
+#ifdef PYDEXINFO
+	if (printbuf)
+		free(printbuf);
+#endif
+
 	psprintf ("\n=== dexinfo %s - (c) 2012-2013 Pau Oliva Fora\n\n", VERSION);
 
 #ifndef PYDEXINFO

@@ -29,7 +29,7 @@ char * dexinfo(char * dexfile, int DEBUG);
 
 static PyObject * err_dexinfo;
 
-static PyObject * fileobj;
+static PyObject * fileobj = NULL;
 
 #define BYTES_IN_LINE 16
 #define MIN(a, b) ((a < b) ? (a) : (b))
@@ -92,58 +92,50 @@ static PyObject * pydexinfo_dexinfo(PyObject __attribute__((unused)) * self, PyO
 	char * printbuf;
 	int verbose;
 
-	if (!PyArg_ParseTuple(args, "sb", &dexfile, &verbose))
+	if (!PyArg_ParseTuple(args, "Ob", &temp, &verbose))
 	{
-		verbose = false;
+		PyErr_SetString(err_dexinfo, "Error parsing function arguments");
 
-		if (!PyArg_ParseTuple(args, "s", &dexfile))
-		{
-			if (!PyArg_ParseTuple(args, "Ob", &temp, &verbose))
-			{
-				if (!PyArg_ParseTuple(args, "O", &temp))
-				{
-					PyErr_SetString(err_dexinfo, "Error parsing function arguments");
-
-					goto error;
-				}
-			}
-
-			Py_XINCREF(temp);
-			Py_XDECREF(fileobj);
-			fileobj = temp;
-
-			if (!(file_read = PyObject_GetAttrString(fileobj, "read")))
-			{
-				PyErr_SetString(err_dexinfo, "Error: File object does not support read() function");
-
-				goto error;
-			}
-
-			if (!PyCallable_Check(file_read))
-			{
-				PyErr_SetString(err_dexinfo, "Error: file read() object is not callable");
-
-				goto error;
-			}
-
-			if (!(file_seek = PyObject_GetAttrString(fileobj, "seek")))
-			{
-				PyErr_SetString(err_dexinfo, "Error: File object does not support seek() function");
-
-				goto error;
-			}
-
-			if (!PyCallable_Check(file_seek))
-			{
-				PyErr_SetString(err_dexinfo, "Error: file seek() object is not callable");
-
-				goto error;
-			}
-
-			/* Tell dexinfo it should call the read callback */
-			dexfile = NULL;
-		}
+		goto error;
 	}
+
+	Py_INCREF(temp);
+
+	if (fileobj)
+		Py_DECREF(fileobj);
+
+	fileobj = temp;
+
+	if (!(file_read = PyObject_GetAttrString(fileobj, "read")))
+	{
+		PyErr_SetString(err_dexinfo, "Error: File object does not support read() function");
+
+		goto error;
+	}
+
+	if (!PyCallable_Check(file_read))
+	{
+		PyErr_SetString(err_dexinfo, "Error: file read() object is not callable");
+
+		goto error;
+	}
+
+	if (!(file_seek = PyObject_GetAttrString(fileobj, "seek")))
+	{
+		PyErr_SetString(err_dexinfo, "Error: File object does not support seek() function");
+
+		goto error;
+	}
+
+	if (!PyCallable_Check(file_seek))
+	{
+		PyErr_SetString(err_dexinfo, "Error: file seek() object is not callable");
+
+		goto error;
+	}
+
+	/* Tell dexinfo it should call the read callback */
+	dexfile = NULL;
 
 	if ((printbuf = dexinfo(dexfile, verbose)) == NULL)
 	{
